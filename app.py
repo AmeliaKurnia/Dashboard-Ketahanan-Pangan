@@ -336,7 +336,7 @@ if menu == "🏠 Dashboard Utama":
             # --- PERBAIKAN WARNA KLASTER & LEGEND ---
             # 1. Warna baru yang lebih cerah dan beda dari abu-abu
             colors = {
-                'Klaster 0': '#e74c3c', # Merah
+                'Klaster 0': '#575fcf', # Biru Tua
                 'Klaster 1': '#3498db', # Biru
                 'Klaster 2': '#2ecc71', # Hijau
                 'Klaster 3': '#f1c40f', # Kuning
@@ -347,28 +347,76 @@ if menu == "🏠 Dashboard Utama":
                 'Tidak Ada Data': '#ffffff'   # PUTIH (biar beda jauh sama Outlier)
             }
             
+            # Render Peta
             folium.GeoJson(
                 gdf_final,
-                style_function=lambda x: {'fillColor': colors.get(x['properties'].get('Cluster_Label'), 'grey'), 'color': 'black', 'weight': 1, 'fillOpacity': 0.7},
-                tooltip=folium.GeoJsonTooltip(fields=['Provinsi_Show', 'Cluster_Label', VAR_MAPPING["X1"]], aliases=['Prov:', 'Status:', 'IKP:']),
+                style_function=lambda x: {
+                    'fillColor': colors.get(x['properties'].get('Cluster_Label'), 'grey'), 
+                    'color': 'black', 
+                    'weight': 1, 
+                    'fillOpacity': 0.7
+                },
+                tooltip=folium.GeoJsonTooltip(
+                    fields=['Provinsi_Show', 'Cluster_Label', VAR_MAPPING["X1"]], 
+                    aliases=['Prov:', 'Status:', 'IKP:']
+                ),
                 popup=folium.GeoJsonPopup(fields=['Provinsi_Show', 'Cluster_Label'])
             ).add_to(m)
             
-            # --- PERBAIKAN LEGEND TEKS GELAP ---
-            legend_html = """
+            # --- GENERATE KONTEN LEGEND DENGAN ANGGOTA ---
+            legend_items = []
+            
+            # Urutkan label agar rapi (Klaster 0, 1, ... lalu Noise)
+            sorted_keys = sorted([k for k in colors.keys() if "Klaster" in k]) + ['Noise (Outlier)']
+            
+            for label in sorted_keys:
+                color = colors[label]
+                # Cari anggota provinsi berdasarkan label di Dataframe df
+                if label == 'Noise (Outlier)':
+                    members = df[df['Cluster_Label'] == label]['Provinsi'].tolist()
+                else:
+                    members = df[df['Cluster_Label'] == label]['Provinsi'].tolist()
+                
+                # Format text anggota (dipotong jika terlalu panjang untuk visual)
+                members_str = ", ".join(members) if members else "-"
+                
+                item_html = f"""
+                <div style="margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">
+                    <div style="display: flex; align-items: center; font-weight: bold; font-size: 13px; color: #000000;">
+                        <i style="background:{color}; width:12px; height:12px; display:inline-block; margin-right:8px; border:1px solid #333; flex-shrink: 0;"></i>
+                        {label} <span style="font-weight:normal; font-size:10px; margin-left:5px; color: #333;">({len(members)} prov)</span>
+                    </div>
+                    <div style="font-size: 10px; color: #000000; margin-left: 20px; line-height: 1.2; margin-top: 2px;">
+                        {members_str}
+                    </div>
+                </div>
+                """
+                legend_items.append(item_html)
+
+            # --- PERBAIKAN TAMPILAN LEGEND (SCROLLABLE) ---
+            legend_html = f"""
             <div style="
                 position: fixed; 
                 bottom: 30px; left: 30px; 
-                z-index:9999; 
-                font-size:12px;
-                color: #000000; /* TEKS HITAM GELAP */
-                background: rgba(255, 255, 255, 0.8); /* Background sedikit lebih solid */
-                padding:10px; 
-                border:1px solid grey; 
-                border-radius:5px;
-                box-shadow: 2px 2px 5px rgba(0,0,0,0.2);">
-                <b>Legenda:</b><br>
-            """ + "".join([f'<i style="background:{c};width:10px;height:10px;display:inline-block;margin-right:5px;border:1px solid #333;"></i> {l}<br>' for l, c in colors.items() if "Klaster" in l or "Noise" in l]) + "</div>"
+                z-index: 9999; 
+                width: 250px;
+                max-height: 350px;
+                overflow-y: auto;
+                background: rgba(255, 255, 255, 0.95); /* Background Putih Solid */
+                padding: 15px; 
+                border: 1px solid #ccc; 
+                border-radius: 8px;
+                box-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+                font-family: sans-serif;
+                color: #000000;"> <h5 style="margin-top:0; margin-bottom:10px; border-bottom:2px solid #333; padding-bottom:5px; color: #000000;">
+                    🗺️ Legenda & Anggota
+                </h5>
+                {''.join(legend_items)}
+                <div style="font-size:9px; color: #333; margin-top:5px;">
+                    <i>*Scroll untuk melihat daftar lengkap</i>
+                </div>
+            </div>
+            """
             
             m.get_root().html.add_child(folium.Element(legend_html))
         else:
